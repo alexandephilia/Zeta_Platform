@@ -38,7 +38,7 @@
     },
     "devDependencies": {
         "@tailwindcss/typography": "^0.5.19",
-        "@types/node": "^22.19.3",
+        "@types/node": "^25.3.3",
         "@vercel/node": "^5.5.16",
         "@vitejs/plugin-react": "^5.0.0",
         "typescript": "~5.8.2",

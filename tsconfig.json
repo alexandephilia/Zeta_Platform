@@ -10,8 +10,10 @@
       "DOM.Iterable"
     ],
     "skipLibCheck": true,
-    "types": [
-      "node"
+    "baseUrl": ".",
+    "typeRoots": [
+      "./node_modules/@types",
+      "./types"
     ],
     "moduleResolution": "bundler",
     "isolatedModules": true,

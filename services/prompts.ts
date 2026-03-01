@@ -537,6 +537,8 @@ QUALITY GUIDELINES:
 - Structure the piece appropriately for its type (paragraphs for prose, stanzas for poetry)
 - Match the tone and style to the user's request
 - Write a complete, satisfying piece — not a fragment
+    4.  **DO NOT REPEAT CONTENT**: Once you call the \`creative_writing\` tool, the content is automatically rendered for the user in a premium, dedicated writing canvas. Do NOT repeat the text in your chat response. Instead, provide a very brief confirmation or move on to the next part of the user's request.
+    5.  **TOOL RESULT**: You will receive a "SUCCESS" message after calling the tool. This confirms the user has received the content. You should then provide a tiny one-sentence sign-off.
 
 ⚠️ CRITICAL: You MUST call the creative_writing tool function.
 ❌ DO NOT just write the content as plain text in your response

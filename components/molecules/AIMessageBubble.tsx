@@ -7,6 +7,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { V3_EXPRESSION_REGEX, initAudioForMobile, isAudioPlaying, isElevenLabsConfigured, playAudio, stopAudio, textToSpeech } from '../../services/elevenLabsService';
 import { Message } from '../../types';
 import { ExpressionPill } from '../atoms/ExpressionPill';
+import { useWritingTool } from '../../hooks/useWritingTool';
 import { CopyLinear, MoreDotsLinear, RefreshSquareLinear, StopCircleLinear, VolumeHighLinear } from '../atoms/Icons';
 import { SearchTimeline } from '../atoms/SearchTimeline';
 import { ThinkingBlock } from '../atoms/ThinkingBlock';
@@ -272,80 +273,30 @@ export const AIMessageBubble: React.FC<AIMessageBubbleProps> = memo(({
     const hasToolCalls = message.toolCalls && message.toolCalls.length > 0;
     const hasRunningTools = message.toolCalls?.some(tc => tc.status === 'pending' || tc.status === 'running');
 
-    // Check for creative writing tool call
-    const writingToolCall = useMemo(() => {
-        return message.toolCalls?.find(tc => tc.name === 'creative_writing');
-    }, [message.toolCalls]);
-
-    // Fallback: Parse content for tool call text pattern when AI outputs it as plain text
-    const parsedWritingFromContent = useMemo(() => {
-        if (writingToolCall) return null; // Already have a proper tool call
-        if (!message.content) return null;
-
-        // Clean the content - remove <tool_code> wrappers and print() wrappers
-        let cleanContent = message.content;
-
-        // Check if content contains creative_writing pattern at all
-        if (!cleanContent.includes('creative_writing')) return null;
-
-        // Extract from <tool_code>...</tool_code> wrapper if present
-        const toolCodeMatch = cleanContent.match(/<tool_code>([\s\S]*?)<\/tool_code>/);
-        if (toolCodeMatch) {
-            cleanContent = toolCodeMatch[1];
-        }
-
-        // Remove print() wrapper if present
-        cleanContent = cleanContent.replace(/^\s*print\s*\(\s*/, '').replace(/\s*\)\s*$/, '');
-
-        // Match patterns for creative_writing(title="...", content="""...""")
-        // Pattern 1: title first, then content with triple quotes
-        const pattern1 = /creative_writing\s*\(\s*title\s*=\s*["']([^"']+)["']\s*,\s*content\s*=\s*"""([\s\S]*?)"""\s*\)/;
-        // Pattern 2: title first, then content with single/double quotes
-        const pattern2 = /creative_writing\s*\(\s*title\s*=\s*["']([^"']+)["']\s*,\s*content\s*=\s*["']([\s\S]*?)["']\s*\)/;
-        // Pattern 3: content first with triple quotes, then optional title
-        const pattern3 = /creative_writing\s*\(\s*content\s*=\s*"""([\s\S]*?)"""\s*(?:,\s*title\s*=\s*["']([^"']+)["'])?\s*\)/;
-        // Pattern 4: Just extract anything between creative_writing( and the closing )
-        // This is a more lenient fallback
-        const pattern4 = /creative_writing\s*\(\s*(?:title\s*=\s*["']([^"']+)["']\s*,\s*)?content\s*=\s*(?:"""|"|')([\s\S]*?)(?:"""|"|')\s*\)/;
-
-        let match = cleanContent.match(pattern1);
-        if (match) {
-            return { title: match[1], content: match[2].trim() };
-        }
-
-        match = cleanContent.match(pattern2);
-        if (match) {
-            return { title: match[1], content: match[2].trim() };
-        }
-
-        match = cleanContent.match(pattern3);
-        if (match) {
-            return { title: match[2] || 'Manuscript', content: match[1].trim() };
-        }
-
-        match = cleanContent.match(pattern4);
-        if (match) {
-            return { title: match[1] || 'Manuscript', content: match[2].trim() };
-        }
-
-        return null;
-    }, [message.content, writingToolCall]);
-
-    const hasWritingTool = !!writingToolCall || !!parsedWritingFromContent;
-    const isWriting = writingToolCall?.status === 'running' || writingToolCall?.status === 'pending';
-    const writingContent = writingToolCall?.result?.content || writingToolCall?.args?.content || parsedWritingFromContent?.content || '';
-    const writingTitle = writingToolCall?.result?.title || writingToolCall?.args?.title || parsedWritingFromContent?.title || 'Manuscript';
+    // Use the custom hook for writing tool detection and parsing
+    const {
+        hasWritingTool,
+        isWriting,
+        writingContent,
+        writingTitle,
+        parsedWritingFromContent
+    } = useWritingTool(message);
 
     // If we parsed writing from content, we should hide the raw tool call text
     const displayContent = useMemo(() => {
-        if (parsedWritingFromContent && message.content) {
-            // Remove the tool call pattern from displayed content
+        if (parsedWritingFromContent) {
+            // Remove standalone creative_writing(...) calls and potential wrappers
             let cleaned = message.content
-                // Remove <tool_code>...</tool_code> blocks entirely
-                .replace(/<tool_code>[\s\S]*?<\/tool_code>/g, '')
-                // Remove standalone creative_writing(...) calls
-                .replace(/print\s*\(\s*creative_writing\s*\([\s\S]*?\)\s*\)/g, '')
-                .replace(/creative_writing\s*\([\s\S]*?\)\s*\)?/g, '')
+                // Remove Markdown code blocks wrapping the call
+                .replace(/```(?:python|javascript|typescript|json|)?\n?\s*creative_writing\s*\([\s\S]*?\)\s*?\n?```/g, '')
+                // Remove <tool_code> wrappers
+                .replace(/<tool_code>\s*creative_writing\s*\([\s\S]*?\)\s*<\/tool_code>/g, '')
+                // Remove bracketed calls
+                .replace(/\[\s*creative_writing\s*\([\s\S]*?\)\s*\]/g, '')
+                // Remove standalone calls
+                .replace(/creative_writing\s*\([\s\S]*?\)\s*?\)?/g, '')
+                // Remove potential print() wrappers
+                .replace(/print\s*\(\s*["']?SUCCESS:[\s\S]*?["']?\s*\)/g, '')
                 .trim();
 
             // If nothing left after cleaning, return empty string

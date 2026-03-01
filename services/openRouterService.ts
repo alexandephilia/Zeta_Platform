@@ -6,7 +6,13 @@
 
 import { Attachment, ToolCall, ToolCallStatus } from '../types';
 import { exaAnswer, ExaCategory, exaGetContents, exaSearch } from './exaService';
-import { getDefaultPrompt, getReasoningPrompt, getSearchPrompt } from './prompts';
+import {
+    getCreativeWritingPrompt,
+    getDefaultPrompt,
+    getReasoningPrompt,
+    getSearchPrompt,
+    getTTSInstructions
+} from './prompts';
 import { OPENAI_TOOLS } from './tools';
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
@@ -299,7 +305,8 @@ export async function* sendMessageToOpenRouterStreamWithTools(
     modelId: string = 'nex-agi/deepseek-v3.1-nex-n1:free',
     enableTools: boolean = false,
     searchType: ExaSearchType = 'auto',
-    reasoningEnabled: boolean = false
+    reasoningEnabled: boolean = false,
+    creativeWritingOnly: boolean = false
 ): AsyncGenerator<OpenRouterStreamEvent, void, unknown> {
     // Set the search type for tool calls
     currentSearchType = searchType;
@@ -352,11 +359,11 @@ export async function* sendMessageToOpenRouterStreamWithTools(
 
     // Build system prompt based on mode
     let systemPrompt: string;
-
-    if (enableTools) {
+    if (creativeWritingOnly) {
+        systemPrompt = getCreativeWritingPrompt();
+    } else if (enableTools) {
         systemPrompt = getSearchPrompt(searchType);
-    } else if (reasoningEnabled && !isDeepSeekR1) {
-        // For non-DeepSeek-R1 models (including DeepSeek V3), use thinking tags
+    } else if (reasoningEnabled) {
         systemPrompt = getReasoningPrompt();
     } else {
         systemPrompt = getDefaultPrompt();
@@ -670,13 +677,22 @@ export async function* sendMessageToOpenRouterStreamWithTools(
                             content: JSON.stringify({ error }),
                         });
                     } else {
-                        yield { type: 'tool_call_update', id: tc.id, status: 'completed', result };
-                        const formattedResult = formatExaResultsCompact(result.results);
+                        let toolContent: string;
+                        if (tc.name === 'creative_writing') {
+                            // For creative writing, explicitly tell the AI it has finished the task
+                            // This matches the pattern in groqService.ts
+                            toolContent = `SUCCESS: The manuscript "${result.title}" has been successfully delivered to the user through the special writing canvas tool. 
+Do NOT repeat the content here. The user can already see it.
+Provide only a tiny one-sentence confirmation or sign-off, or simply end your response.`;
+                        } else {
+                            // For search tools, use compact results
+                            toolContent = formatExaResultsCompact(result.results);
+                        }
                         messages.push({
                             role: 'tool',
                             tool_call_id: tc.id,
                             name: tc.name,
-                            content: formattedResult,
+                            content: toolContent,
                         });
                     }
                 }

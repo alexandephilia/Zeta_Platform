@@ -387,7 +387,11 @@ export async function* sendMessageToGeminiStreamWithTools(
                             yield { type: 'tool_call_update', id: tc.id, status: 'completed', result };
                             const formattedResult = tc.name === 'web_search'
                                 ? formatExaResultsForContext(result.results)
-                                : JSON.stringify(result);
+                                : tc.name === 'creative_writing'
+                                    ? `SUCCESS: The manuscript "${result.title}" has been successfully delivered to the user through the special writing canvas tool. 
+Do NOT repeat the content here. The user can already see it.
+Provide only a tiny one-sentence confirmation or sign-off, or simply end your response.`
+                                    : JSON.stringify(result);
                             functionResponseParts.push({
                                 functionResponse: {
                                     name: tc.name,

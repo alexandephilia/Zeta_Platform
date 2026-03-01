@@ -157,7 +157,8 @@ export function useChatMessages(options: UseChatMessagesOptions) {
         effectiveSearchType: SearchType,
         modelId: string,
         useReasoning: boolean,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        creativeWritingOnly: boolean = false
     ) => {
         const stream = sendMessageToOpenRouterStreamWithTools(
             prompt, history, modelId, true, effectiveSearchType, useReasoning
@@ -224,7 +225,8 @@ export function useChatMessages(options: UseChatMessagesOptions) {
         messageId: string,
         modelId: string,
         useReasoning: boolean,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        creativeWritingOnly: boolean = false
     ) => {
         // Use the stream with tools function but with tools disabled - it handles reasoning
         const stream = sendMessageToOpenRouterStreamWithTools(
@@ -390,55 +392,47 @@ export function useChatMessages(options: UseChatMessagesOptions) {
     };
 
     /**
-     * Process Routeway stream (DeepSeek V3.2)
+     * Process Routeway stream with tools
      */
-    const processRoutewayStream = async (
+    const processRoutewayWithTools = async (
         prompt: string,
         history: any[],
         messageId: string,
         effectiveSearchType: SearchType,
-        effectiveWebSearch: boolean,
         modelId: string,
         useReasoning: boolean,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        creativeWritingOnly: boolean = false
     ) => {
         const stream = sendMessageToRoutewayStreamWithTools(
-            prompt, history, modelId, effectiveWebSearch, effectiveSearchType, useReasoning
+            prompt, history, modelId, true, effectiveSearchType, useReasoning, creativeWritingOnly
         );
         let fullContent = '';
         let fullThinking = '';
         let currentToolCalls: ToolCall[] = [];
 
         for await (const event of stream) {
-            // Check if aborted
-            if (signal?.aborted) {
-                throw new DOMException('Aborted', 'AbortError');
-            }
+            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
             switch (event.type) {
                 case 'thinking':
                     fullThinking += event.content;
                     updateStreamingMessage(messageId, { thinking: fullThinking, isThinking: true });
                     break;
-
                 case 'thinking_done':
                     updateStreamingMessage(messageId, { isThinking: false });
                     break;
-
                 case 'planning':
                     updateStreamingMessage(messageId, { planningText: event.content });
                     break;
-
                 case 'text':
                     fullContent += event.content;
                     updateStreamingMessage(messageId, { content: fullContent, toolCalls: currentToolCalls, isThinking: false });
                     break;
-
                 case 'tool_call_start':
                     currentToolCalls = [...currentToolCalls, event.toolCall];
                     updateStreamingMessage(messageId, { isThinking: false, toolCalls: currentToolCalls });
                     break;
-
                 case 'tool_call_update':
                     currentToolCalls = currentToolCalls.map(tc =>
                         tc.id === event.id
@@ -453,6 +447,43 @@ export function useChatMessages(options: UseChatMessagesOptions) {
                             : tc
                     );
                     updateStreamingMessage(messageId, { toolCalls: currentToolCalls });
+                    break;
+            }
+        }
+    };
+
+    /**
+     * Process Routeway simple stream
+     */
+    const processRoutewaySimple = async (
+        prompt: string,
+        history: any[],
+        messageId: string,
+        modelId: string,
+        useReasoning: boolean,
+        signal?: AbortSignal,
+        creativeWritingOnly: boolean = false
+    ) => {
+        const stream = sendMessageToRoutewayStreamWithTools(
+            prompt, history, modelId, false, 'auto', useReasoning, creativeWritingOnly
+        );
+        let fullContent = '';
+        let fullThinking = '';
+
+        for await (const event of stream) {
+            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+            switch (event.type) {
+                case 'thinking':
+                    fullThinking += event.content;
+                    updateStreamingMessage(messageId, { thinking: fullThinking, isThinking: true });
+                    break;
+                case 'thinking_done':
+                    updateStreamingMessage(messageId, { isThinking: false });
+                    break;
+                case 'text':
+                    fullContent += event.content;
+                    updateStreamingMessage(messageId, { content: fullContent, isThinking: false });
                     break;
             }
         }
@@ -591,18 +622,21 @@ export function useChatMessages(options: UseChatMessagesOptions) {
 
             if (currentModel.provider === 'openrouter') {
                 if (effective.webSearchEnabled) {
-                    await processOpenRouterWithTools(enrichedPrompt, history, newAiMessageId, effectiveSearchType, currentModel.id, effective.reasoningEnabled, signal);
+                    await processOpenRouterWithTools(enrichedPrompt, history, newAiMessageId, effectiveSearchType, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
                 } else {
-                    await processOpenRouterSimple(enrichedPrompt, history, newAiMessageId, currentModel.id, effective.reasoningEnabled, signal);
+                    await processOpenRouterSimple(enrichedPrompt, history, newAiMessageId, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
                 }
             } else if (currentModel.provider === 'groq') {
                 // For Groq, pass creativeWritingOnly for Kimi K2 (exa tools), not for Compound (built-in tools)
                 await processGroqStream(enrichedPrompt, history, newAiMessageId, effectiveSearchType, effective.webSearchEnabled, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
-            } else if (currentModel.provider === 'routeway') {
-                await processRoutewayStream(enrichedPrompt, history, newAiMessageId, effectiveSearchType, effective.webSearchEnabled, currentModel.id, effective.reasoningEnabled, signal);
-            } else {
-                // For Gemini, pass creativeWritingOnly flag to use appropriate tool set
+            } else if (currentModel.provider === 'gemini') {
                 await processGeminiStream(enrichedPrompt, history, newAiMessageId, effectiveSearchType, effective.webSearchEnabled, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
+            } else if (currentModel.provider === 'routeway') {
+                if (effective.webSearchEnabled) {
+                    await processRoutewayWithTools(enrichedPrompt, history, newAiMessageId, effectiveSearchType, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
+                } else {
+                    await processRoutewaySimple(enrichedPrompt, history, newAiMessageId, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
+                }
             }
 
             // Increment usage for guests after successful start
@@ -721,16 +755,20 @@ export function useChatMessages(options: UseChatMessagesOptions) {
 
             if (currentModel.provider === 'openrouter') {
                 if (effective.webSearchEnabled) {
-                    await processOpenRouterWithTools(promptContent, historyForApi, newAiMessageId, currentSearchType, currentModel.id, effective.reasoningEnabled, signal);
+                    await processOpenRouterWithTools(promptContent, historyForApi, newAiMessageId, currentSearchType, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
                 } else {
-                    await processOpenRouterSimple(promptContent, historyForApi, newAiMessageId, currentModel.id, effective.reasoningEnabled, signal);
+                    await processOpenRouterSimple(promptContent, historyForApi, newAiMessageId, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
                 }
             } else if (currentModel.provider === 'groq') {
-                await processGroqStream(promptContent, historyForApi, newAiMessageId, currentSearchType, effective.webSearchEnabled, currentModel.id, effective.reasoningEnabled, signal);
-            } else if (currentModel.provider === 'routeway') {
-                await processRoutewayStream(promptContent, historyForApi, newAiMessageId, currentSearchType, effective.webSearchEnabled, currentModel.id, effective.reasoningEnabled, signal);
-            } else {
+                await processGroqStream(promptContent, historyForApi, newAiMessageId, currentSearchType, effective.webSearchEnabled, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
+            } else if (currentModel.provider === 'gemini') {
                 await processGeminiStream(promptContent, historyForApi, newAiMessageId, currentSearchType, effective.webSearchEnabled, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
+            } else if (currentModel.provider === 'routeway') {
+                if (effective.webSearchEnabled) {
+                    await processRoutewayWithTools(promptContent, historyForApi, newAiMessageId, currentSearchType, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
+                } else {
+                    await processRoutewaySimple(promptContent, historyForApi, newAiMessageId, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
+                }
             }
 
             // Increment usage for guests after successful start
@@ -892,17 +930,21 @@ export function useChatMessages(options: UseChatMessagesOptions) {
 
             if (currentModel.provider === 'openrouter') {
                 if (effective.webSearchEnabled) {
-                    await processOpenRouterWithTools(enrichedPrompt, historyForApi, newAiMessageId, currentSearchType, currentModel.id, effective.reasoningEnabled, signal);
+                    await processOpenRouterWithTools(enrichedPrompt, historyForApi, newAiMessageId, currentSearchType, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
                 } else {
-                    await processOpenRouterSimple(enrichedPrompt, historyForApi, newAiMessageId, currentModel.id, effective.reasoningEnabled, signal);
+                    await processOpenRouterSimple(enrichedPrompt, historyForApi, newAiMessageId, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
                 }
             } else if (currentModel.provider === 'groq') {
                 // For Groq, pass creativeWritingOnly for Kimi K2 (exa tools), not for Compound (built-in tools)
                 await processGroqStream(enrichedPrompt, historyForApi, newAiMessageId, currentSearchType, effective.webSearchEnabled, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
-            } else if (currentModel.provider === 'routeway') {
-                await processRoutewayStream(enrichedPrompt, historyForApi, newAiMessageId, currentSearchType, effective.webSearchEnabled, currentModel.id, effective.reasoningEnabled, signal);
-            } else {
+            } else if (currentModel.provider === 'gemini') {
                 await processGeminiStream(enrichedPrompt, historyForApi, newAiMessageId, currentSearchType, effective.webSearchEnabled, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
+            } else if (currentModel.provider === 'routeway') {
+                if (effective.webSearchEnabled) {
+                    await processRoutewayWithTools(enrichedPrompt, historyForApi, newAiMessageId, currentSearchType, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
+                } else {
+                    await processRoutewaySimple(enrichedPrompt, historyForApi, newAiMessageId, currentModel.id, effective.reasoningEnabled, signal, creativeWritingOnly);
+                }
             }
         } catch (error) {
             // Check if this was an abort

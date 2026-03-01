@@ -8,7 +8,7 @@
 
 import { Attachment, ToolCall, ToolCallStatus } from '../types';
 import { exaAnswer, ExaCategory, exaGetContents, exaSearch } from './exaService';
-import { getDefaultPrompt, getReasoningPrompt, getSearchPrompt } from './prompts';
+import { getCreativeWritingPrompt, getDefaultPrompt, getReasoningPrompt, getSearchPrompt } from './prompts';
 import { OPENAI_TOOLS } from './tools';
 
 const ROUTEWAY_API_KEY = import.meta.env.VITE_ROUTEWAY_API_KEY;
@@ -202,7 +202,8 @@ export async function* sendMessageToRoutewayStreamWithTools(
     modelId: string = 'minimax-m2:free',
     enableTools: boolean = false,
     searchType: ExaSearchType = 'auto',
-    reasoningEnabled: boolean = false
+    reasoningEnabled: boolean = false,
+    creativeWritingOnly: boolean = false
 ): AsyncGenerator<RoutewayStreamEvent, void, unknown> {
     // Set the search type for tool calls
     currentSearchType = searchType;
@@ -250,10 +251,11 @@ export async function* sendMessageToRoutewayStreamWithTools(
         });
 
     // Build system prompt based on mode
-    // DeepSeek V3.2 supports tools + reasoning together
     let systemPrompt: string;
 
-    if (enableTools) {
+    if (creativeWritingOnly) {
+        systemPrompt = getCreativeWritingPrompt();
+    } else if (enableTools) {
         systemPrompt = getSearchPrompt(searchType);
     } else if (reasoningEnabled) {
         systemPrompt = getReasoningPrompt();
@@ -537,12 +539,23 @@ export async function* sendMessageToRoutewayStreamWithTools(
                         });
                     } else {
                         yield { type: 'tool_call_update', id: tc.id, status: 'completed', result };
-                        const formattedResult = formatExaResultsCompact(result.results);
+                        
+                        let toolContent: string;
+                        if (tc.name === 'creative_writing') {
+                            // For creative writing, explicitly tell the AI it has finished the task
+                            toolContent = `SUCCESS: The manuscript "${result.title}" has been successfully delivered to the user through the special writing canvas tool. 
+Do NOT repeat the content here. The user can already see it.
+Provide only a tiny one-sentence confirmation or sign-off, or simply end your response.`;
+                        } else {
+                            // For search tools, use compact results
+                            toolContent = formatExaResultsCompact(result.results);
+                        }
+
                         messages.push({
                             role: 'tool',
                             tool_call_id: tc.id,
                             name: tc.name,
-                            content: formattedResult,
+                            content: toolContent,
                         });
                     }
                 }

@@ -229,8 +229,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     // Handler for sending edited writing content from WritingCanvas
     const handleSendEditedWriting = (editedContent: string) => {
         if (editedContent.trim()) {
-            // Send the edited content as a new user message with context
-            sendMessage(`Here's my edited version of the writing:\n\n${editedContent}\n\nPlease review and provide feedback and use Writing Tools to continue.`);
+            // Create a pseudo-attachment for the edited content
+            const attachment: any = {
+                id: `edited-${Date.now()}`,
+                type: 'file',
+                name: 'Edited Manuscript.txt',
+                content: editedContent,
+                dataUrl: false // No actual file backing it, just text content
+            };
+
+            // Send with the attachment instead of pasting the whole text
+            sendMessage(
+                "I've made some edits to the manuscript. Please review the attached file and let me know what you think.",
+                [attachment]
+            );
         }
     };
 
