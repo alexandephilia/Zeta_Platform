@@ -126,9 +126,18 @@ const StableAnimatedContent = memo(({
         }
     }, [isStreaming]);
 
+    // Check if we should render expression pills (only for Zeta V2 / eleven_v3)
+    // Note: We check this on initial render of the message
+    const shouldRenderPills = useMemo(() => {
+        const modelId = localStorage.getItem('elevenlabs_model');
+        return modelId === 'eleven_v3';
+    }, []);
+
     // Helper to process content and replace expression tags with pills
     // We use this recursively for component children
     const processContentWithPills = useCallback((children: any): any => {
+        if (!shouldRenderPills) return children;
+
         if (typeof children === 'string') {
             // Regex has capturing group, so split includes duplicates at odd indices
             // Filter to keep only text parts (even indices)

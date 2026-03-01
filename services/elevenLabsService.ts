@@ -280,8 +280,11 @@ export function isElevenLabsConfigured(): boolean {
  * - \] - Closing bracket
  *
  * The 32 char limit prevents matching overly long bracketed content that's likely not an expression tag.
+ *
+ * Refined to avoid matching common bracketed text like [Citation] or [Internal Note]
+ * by requiring either a space or being a known lowercase expression keyword.
  */
-export const V3_EXPRESSION_REGEX = /\[([a-zA-Z][a-zA-Z\s'-]{0,30})\]/gi;
+export const V3_EXPRESSION_REGEX = /\[([a-z][a-z\s'-]{0,30}|[a-zA-Z\s'-]+ [a-zA-Z\s'-]+)\]/gi;
 
 
 /**
@@ -344,6 +347,8 @@ function stripMarkdown(text: string, preserveV3Expressions: boolean = false): st
         // Remove list markers
         .replace(/^[\s]*[-*+]\s+/gm, '')
         .replace(/^[\s]*\d+\.\s+/gm, '')
+        // Step 2.5: If not V3, strip any remaining bracketed text (likely expressions or stray brackets)
+        .replace(!preserveV3Expressions ? /\[[^\]]*\]/g : /#REJECT#/, '')
         // Clean up extra whitespace
         .replace(/\n{3,}/g, '\n\n')
         .trim();

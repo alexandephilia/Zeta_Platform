@@ -310,7 +310,7 @@ GUIDELINES:
 - Vary sentence length for natural flow
 - Use punctuation to create natural pauses (commas, periods, ellipses)
 - Avoid overly formal or robotic language
-- DO NOT use any bracketed expressions like [laughs] or [pause] - they will be spoken literally as words
+- DO NOT use any bracketed expressions like [laughs], asterisks like *smiles*, or parentheses like (sighs) - they will be spoken literally as words
 - Express emotion through word choice and sentence structure instead`;
 
 /**
