@@ -260,7 +260,7 @@ const TimelineImageGallery: React.FC<{ images: string[] }> = ({ images }) => {
         // We use a combination of translation and rotation
         // Circular 3D logic:
         // Position cards along a balanced arc
-        const angle = offset * (isMobile ? 25 : 28); // Tighter gap between cards
+        const angle = offset * (isMobile ? 32 : 38); // More dramatic overlap for Cover Flow
         const radian = (angle * Math.PI) / 180;
 
         const radius = isMobile ? 280 : 350;
@@ -271,7 +271,7 @@ const TimelineImageGallery: React.FC<{ images: string[] }> = ({ images }) => {
 
         const rotateY = -angle * 1.2;
         const scale = isActive ? (isMobile ? 1.05 : 1.1) : 0.85;
-        const opacity = isActive ? 1 : 0.9; // High opacity, rely on mask for fade-out
+        const opacity = isActive ? 1 : 0.95; // Increased opacity for 3D roundabout feel
         const blur = isActive ? 0 : Math.min(8, absOffset * 4);
 
         return { x, z, rotateY, scale, opacity, blur };
@@ -295,10 +295,10 @@ const TimelineImageGallery: React.FC<{ images: string[] }> = ({ images }) => {
                 className="relative select-none"
                 style={{
                     width: '100%',
-                    maxWidth: isMobile ? '360px' : '700px',
-                    height: isMobile ? '180px' : '220px',
-                    maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
-                    WebkitMaskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
+                    maxWidth: isMobile ? '360px' : '650px', // More compact for centered feel
+                    height: isMobile ? '200px' : '280px', // Increased height to fit square cards + 3D depth
+                    maskImage: 'linear-gradient(to right, transparent, black 20%, black 80%, transparent)',
+                    WebkitMaskImage: 'linear-gradient(to right, transparent, black 20%, black 80%, transparent)',
                     padding: '40px 0'
                 }}
             >
@@ -355,8 +355,8 @@ const TimelineImageGallery: React.FC<{ images: string[] }> = ({ images }) => {
                                 whileHover={idx === activeIndex ? { scale: 1.08 } : {}}
                                 className="absolute rounded-xl overflow-hidden"
                                 style={{
-                                    width: isMobile ? '180px' : '220px',
-                                    height: isMobile ? '120px' : '140px',
+                                    width: isMobile ? '190px' : '240px',
+                                    height: isMobile ? '140px' : '180px',
                                     transformStyle: 'preserve-3d',
                                     zIndex: getZIndex(idx),
                                     boxShadow: idx === activeIndex
