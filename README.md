@@ -4,7 +4,8 @@ A high-performance, multi-model AI chat assistant with real-time web search capa
 
 ![Zeta AI](https://img.shields.io/badge/React-19-blue?style=for-the-badge&logo=react) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue?style=for-the-badge&logo=typescript) ![Vite](https://img.shields.io/badge/Vite-6-purple?style=for-the-badge&logo=vite)
 
-![Zeta Platform Screenshot](https://i.ibb.co/4wRhmGv0/Screen-Shot-2026-03-03-at-21-55-48-PM.png)
+![Zeta Platform Screenshot](./public/Screen%20Shot%202026-03-03%20at%2021.55.48%20PM.png)
+
 
 ---
 
